@@ -17,117 +17,98 @@ from scipy import sparse
 from numpy import array
 import re
 
-y = []
-X_drug = []
-X_drug_test = []
-rule_list = []
-rule_list_test = []
-y_final_test = []
+drug_train = []
+drug_test = []
+rule_train = []
+rule_test = []
+y_train = []
+y_test = []
 
 with open('akhil_train_file.csv','r') as file:
     data_list = csv.reader(file,delimiter='|')
     for row in data_list:
-        X_drug.append(row[0])
+        drug_train.append(row[0])
         data = re.sub('~',' ',row[1])
-        rule_list.append(data)
-        y.append(row[2])
-
-#tfidf = TfidfVectorizer(stop_words=ENGLISH_STOP_WORDS,ngram_range=(1,2),max_df= 0.85, min_df= 0.01)
-tfidf = TfidfVectorizer(stop_words=ENGLISH_STOP_WORDS,max_df= 0.85, min_df= 0.01)
-
-#training data for drug
-X_drug_tfidf = tfidf.fit_transform(X_drug)
-
-#fit_transform() returns a tf-idf-weighted document-term matrix.
-tfidf_rule = tfidf.fit_transform(rule_list)
-
-'''
-#the tuple represents, document no. (in this case sentence no.) and feature no.
-print(tfidf_rule)
-
-#to understand the tfidf matrix
-for i, feature in enumerate(tfidf.get_feature_names()):
-    print(i, feature)
-'''
-
-#* Technically your TFIDF is just a matrix where the rows are records and the columns are features.
-# As such to combine you can append your new features as columns to the end of the matrix.
-
-#tfidf returns sparse matrix. Hence convert to dense matrix
-dense_rule_list = array(tfidf_rule.todense())
-dense_drug = array(X_drug_tfidf.todense())
-
-row2,column2 = dense_drug.shape
-print(dense_rule_list.shape)
-
-# for dense_rule in dense_rule_list:
-#     print(dense_rule.shape)
-row1, column1 = dense_rule_list.shape
-col = max(column1,column2)
-dense_rule_list.resize(row1, col)
-
-dense_drug.resize(row1,col)
-
-
-final_dense =dense_rule_list + dense_drug
-
-X = sparse.csr_matrix(final_dense)
-
-
-#X_drug_tfidf_train, X_drug_tfidf_test, y_drug_train, y_drug_test = train_test_split(X,y, test_size = 0.3)
-#X_rules_tfidf_train, X_rules_tfidf_test, y_rules_train, y_rules_test = train_test_split(X_rules_tfidf,y, test_size = 0.3)
-
-#train and split on the training file for testing
-
-X_train, X_test, y_train, y_test = train_test_split(X,y, test_size = 0.3)
-
-rcf_headline = RandomForestClassifier(n_estimators=100,n_jobs=3)
-
-rcf_headline.fit(X_train, y_train)
-y_rc_headline_pred = rcf_headline.predict(X_test)
-
-print("Random Forest F1 and Accuracy Scores : \n")
-print ( "F1 score {:.4}%".format( f1_score(y_test, y_rc_headline_pred, average='macro')*100 ) )
-print ( "Accuracy score {:.4}%".format(accuracy_score(y_test, y_rc_headline_pred)*100) )
+        rule_train.append(data)
+        y_train.append(row[2])
 
 
 with open('akhil_test_file.csv','r') as file:
     data_list = csv.reader(file,delimiter='|')
     for row in data_list:
-        X_drug_test.append(row[0])
+        drug_test.append(row[0])
         data = re.sub('~',' ',row[1])
-        rule_list_test.append(data)
-        y_final_test.append(row[2])
+        rule_test.append(data)
+        y_test.append(row[2])
 
-#testing data for drug
-X_drug_tfidf_test = tfidf.transform(X_drug_test)
+'''
+######### Function to concat multiple textual features into a singular one using tfidf   ############
+'''
 
-#fit_transform() returns a tf-idf-weighted document-term matrix.
-tfidf_rule_test = tfidf.transform(rule_list_test)
+def concat_features(tfidf,drug_train,rule_train,flag):
+    if flag == 0:
+        # training data for drug
+        tfidf_drug = tfidf.fit_transform(drug_train)
+        # fit_transform() returns a tf-idf-weighted document-term matrix.
+        tfidf_rule = tfidf.fit_transform(rule_train)
+    else:
+        # training data for drug
+        tfidf_drug = tfidf.transform(drug_train)
+        # fit_transform() returns a tf-idf-weighted document-term matrix.
+        tfidf_rule = tfidf.transform(rule_train)
+    '''
+    #the tuple represents, document no. (in this case sentence no.) and feature no.
+    print(tfidf_rule)
+    #to understand the tfidf matrix
+    for i, feature in enumerate(tfidf.get_feature_names()):
+        print(i, feature)
+    '''
 
-#tfidf returns sparse matrix. Hence convert to dense matrix
-dense_rule_list_test = array(tfidf_rule_test.todense())
-dense_drug_test = array(X_drug_tfidf_test.todense())
+    # * Technically your TFIDF is just a matrix where the rows are records and the columns are features.
+    # As such to combine you can append your new features as columns to the end of the matrix.
+    # tfidf returns sparse matrix. Hence convert to dense matrix
+    dense_rule = array(tfidf_rule.todense())
+    dense_drug = array(tfidf_drug.todense())
 
-row2_test,column2_test = dense_drug_test.shape
-print(dense_rule_list_test.shape)
+    row1, col1 = dense_drug.shape
+    row2, col2 = dense_rule.shape
 
-# for dense_rule in dense_rule_list:
-#     print(dense_rule.shape)
-row1_test, column1_test = dense_rule_list_test.shape
-col_test = max(column1_test,column2_test)
-dense_rule_list.resize(row1_test, col_test)
+    #compute max column size for final sparse matrix
+    col = max(col1, col2)
+    row = max(row1,row2)
 
-dense_drug_test.resize(row1_test,col_test)
+    #Resize dense matrices of DT matrix of both features to carry out addition
+    dense_rule.resize(row, col)
+    dense_drug.resize(row, col)
+
+    #add both dense matrices to create a singular training data
+    X_dense = dense_rule + dense_drug
+
+    #Convert the dense matrix(i.e DT matrix) back into sparse matrix
+    X = sparse.csr_matrix(X_dense)
+
+    return X
+
+'''
+######### Function for modelling and training  ############
+'''
+
+def modelling_taining():
+    # tfidf = TfidfVectorizer(stop_words=ENGLISH_STOP_WORDS,ngram_range=(1,2),max_df= 0.85, min_df= 0.01)
+    tfidf = TfidfVectorizer(stop_words=ENGLISH_STOP_WORDS, max_df=0.85, min_df=0.01)
+
+    X_train = concat_features(tfidf, drug_train, rule_train, 0)
+
+    rfc = RandomForestClassifier(n_estimators=100, n_jobs=3)
+    rfc.fit(X_train, y_train)
+
+    X_test = concat_features(tfidf, drug_test, rule_test, 1)
+    final_prediction = rfc.predict(X_test)
+
+    print("Random Forest F1 and Accuracy Scores : \n")
+    print("F1 score {:.4}%".format(f1_score(y_test, final_prediction, average='macro') * 100))
+    print("Accuracy score {:.4}%".format(accuracy_score(y_test, final_prediction) * 100))
 
 
-final_dense_test =dense_rule_list_test + dense_drug_test
-
-X_test2 = sparse.csr_matrix(final_dense_test)
-
-
-final_prediction = rcf_headline.predict(X_test2)
-
-print("Random Forest F1 and Accuracy Scores : \n")
-print ( "F1 score {:.4}%".format( f1_score(y_final_test, final_prediction, average='macro')*100 ) )
-print ( "Accuracy score {:.4}%".format(accuracy_score(y_final_test, final_prediction)*100) )
+if __name__ == '__main__':
+    modelling_taining()

@@ -16,6 +16,7 @@ from sklearn.metrics import f1_score, accuracy_score
 from scipy import sparse
 from numpy import array
 import re
+import pickle
 
 drug_train = []
 drug_test = []
@@ -108,7 +109,14 @@ def modelling_taining():
     print("Random Forest F1 and Accuracy Scores : \n")
     print("F1 score {:.4}%".format(f1_score(y_test, final_prediction, average='macro') * 100))
     print("Accuracy score {:.4}%".format(accuracy_score(y_test, final_prediction) * 100))
+       
+    # save the model to disk
+    filename = 'rfmodel'
+    pickle.dump(rfc, open(filename, 'wb'))
 
+    #loaded_model = pickle.load(open(filename, 'rb'))
+    #result = loaded_model.score(X_test, y_test)
+    #print(result,'result')
 
 if __name__ == '__main__':
     modelling_taining()
